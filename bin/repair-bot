@@ -2,96 +2,147 @@
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
 cd "$ROOT"
 
-echo
-echo "🤖 NEXUS AUTOFORGE REPAIR BOT"
-echo
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
-FAIL=0
-
-echo "=== STRUCTUUR ==="
-
-mkdir -p \
-    data \
-    logs \
-    reports \
-    tests \
-    bin
-
-chmod +x nexus.py 2>/dev/null || true
-chmod +x bin/nexus 2>/dev/null || true
-chmod +x bin/repair-bot 2>/dev/null || true
-chmod +x tests/test.sh 2>/dev/null || true
-
-echo "✅ structuur"
+MAX=3
 
 echo
-echo "=== PYTHON SYNTAX ==="
+echo "================================================"
+echo "🤖 NEXUS AUTOFORGE REPAIR BOT V3"
+echo "================================================"
 
-if python -m py_compile nexus.py nexuslib/core.py
-then
-    echo "✅ Python"
-else
-    echo "❌ Python"
-    FAIL=1
-fi
-
-echo
-echo "=== SHELL SYNTAX ==="
-
-for FILE in bin/nexus bin/repair-bot
+for ROUND in $(seq 1 "$MAX")
 do
-    if bash -n "$FILE"
+    echo
+    echo "=== REPAIR ROUND $ROUND/$MAX ==="
+
+    mkdir -p \
+        data \
+        logs \
+        reports
+
+    chmod +x \
+        nexus.py \
+        bin/nexus \
+        bin/repair-bot \
+        tests/test.sh \
+        tests/import-regression.py \
+        tests/security-regression.py \
+        2>/dev/null || true
+
+    echo
+    echo "[1/7] PYTHON COMPILE"
+
+    if ! python -m py_compile \
+        nexus.py \
+        nexuslib/core.py \
+        tests/import-regression.py \
+        tests/security-regression.py
     then
-        echo "✅ $FILE"
-    else
-        echo "❌ $FILE"
-        FAIL=1
+        echo "❌ PYTHON_COMPILE_FAIL"
+        continue
     fi
+
+    echo "✅ Python"
+
+    echo
+    echo "[2/7] IMPORT ROOT"
+
+    if ! python tests/import-regression.py
+    then
+        echo "❌ IMPORT_ROOT_FAIL"
+
+        printf '%s\n' \
+        "problem=python-module-import" \
+        "root_cause=repository-root-not-in-sys.path" \
+        "solution=inject-project-root-and-PYTHONPATH" \
+        > reports/import-root-cause.txt
+
+        continue
+    fi
+
+    echo "✅ Imports"
+
+    echo
+    echo "[3/7] SHELL"
+
+    if ! bash -n bin/nexus ||
+       ! bash -n bin/repair-bot ||
+       ! bash -n tests/test.sh
+    then
+        echo "❌ SHELL_FAIL"
+        continue
+    fi
+
+    echo "✅ Shell"
+
+    echo
+    echo "[4/7] SELFTEST"
+
+    if ! timeout 45 python nexus.py selftest
+    then
+        echo "❌ SELFTEST_FAIL"
+        continue
+    fi
+
+    echo "✅ Selftest"
+
+    echo
+    echo "[5/7] SECURITY REGRESSION"
+
+    if ! timeout 45 \
+        python tests/security-regression.py
+    then
+        echo "❌ SECURITY_REGRESSION_FAIL"
+        continue
+    fi
+
+    echo "✅ Security regression"
+
+    echo
+    echo "[6/7] SECURITY AUDIT"
+
+    AUDIT="$(
+        timeout 45 \
+        python nexus.py audit ||
+        true
+    )"
+
+    printf '%s\n' "$AUDIT"
+
+    if ! printf '%s\n' "$AUDIT" |
+        jq -e '.security == "PASS"' \
+        >/dev/null
+    then
+        echo "❌ SECURITY_FAIL"
+        continue
+    fi
+
+    echo "✅ Security"
+
+    echo
+    echo "[7/7] COMPLETE TEST SUITE"
+
+    if ! timeout 180 ./tests/test.sh
+    then
+        echo "❌ TEST_SUITE_FAIL"
+        continue
+    fi
+
+    echo
+    echo "================================================"
+    echo "✅ REPAIR BOT V3 PASS"
+    echo "================================================"
+
+    exit 0
 done
 
 echo
-echo "=== SELFTEST ==="
+echo "================================================"
+echo "❌ REPAIR BOT FAILED AFTER $MAX ROUNDS"
+echo "================================================"
 
-if timeout 45 python nexus.py selftest
-then
-    echo "✅ selftest"
-else
-    echo "❌ selftest"
-    FAIL=1
-fi
-
-echo
-echo "=== DATABASE ==="
-
-if timeout 45 python nexus.py repair >/dev/null
-then
-    echo "✅ repair/database"
-else
-    echo "⚠️ nexus repair kon niet zelfstandig voltooien"
-fi
-
-echo
-echo "=== SECURITY ==="
-
-if timeout 45 python nexus.py audit |
-   jq -e '.security == "PASS"' >/dev/null
-then
-    echo "✅ security"
-else
-    echo "❌ security"
-    FAIL=1
-fi
-
-echo
-echo "================================"
-
-if [ "$FAIL" -eq 0 ]
-then
-    echo "✅ REPAIR BOT PASS"
-    exit 0
-fi
-
-echo "❌ REPAIR BOT FAIL"
 exit 1
