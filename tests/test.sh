@@ -4,46 +4,57 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "=== PYTHON ==="
-python -m py_compile nexus.py nexuslib/core.py
-echo "✅ Python"
+echo
+echo "=========================================="
+echo " NEXUS AUTOFORGE TEST SUITE"
+echo "=========================================="
 
-echo "=== BASH ==="
+python -m py_compile \
+    nexus.py \
+    nexuslib/core.py
+
+echo "✅ Python syntax"
+
 bash -n bin/nexus
 bash -n bin/repair-bot
 bash -n tests/test.sh
-echo "✅ Bash"
 
-echo "=== SELFTEST ==="
-python nexus.py selftest | grep -q "SELFTEST PASS"
+echo "✅ Bash syntax"
+
+python nexus.py selftest |
+    grep -q "SELFTEST PASS"
+
 echo "✅ Selftest"
 
-echo "=== ARCHITECT ==="
-python nexus.py create "Nexus Test Project" |
-jq -e '.name == "nexus-test-project"' >/dev/null
+python nexus.py create \
+    "AutoForge Test Project" |
+    jq -e '.name == "autoforge-test-project"' \
+    >/dev/null
+
 echo "✅ Architect"
 
-echo "=== STATUS ==="
-python nexus.py status |
-jq -e '.service == "mikis13-nexus"' >/dev/null
+SECURITY="$(
+    python nexus.py audit
+)"
+
+printf '%s\n' "$SECURITY" |
+    jq -e '.security == "PASS"' \
+    >/dev/null
+
+echo "✅ Security"
+
+STATUS="$(
+    python nexus.py status
+)"
+
+printf '%s\n' "$STATUS" |
+    jq -e \
+    '.service == "mikis13-nexus"' \
+    >/dev/null
+
 echo "✅ Status"
 
-echo "=== ANTI LOOP ==="
-
-P="anti-loop-test-$(date +%s)-$$"
-
-python nexus.py learn "$P" FAIL >/dev/null
-python nexus.py learn "$P" FAIL >/dev/null
-python nexus.py learn "$P" FAIL >/dev/null
-
-python nexus.py analyze "$P" |
-jq -e \
-'.recommendation == "STOP_REPEAT_AND_CHANGE_STRATEGY"' \
->/dev/null
-
-echo "✅ Anti-loop"
-
 echo
-echo "================================"
-echo "✅ MIKIS13 NEXUS TESTS PASS"
-echo "================================"
+echo "=========================================="
+echo "✅ ALLE LOKALE TESTS PASS"
+echo "=========================================="

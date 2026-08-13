@@ -1,0 +1,75 @@
+name: Nexus AutoForge CI
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Permissions
+        run: |
+          chmod +x nexus.py
+          chmod +x bin/nexus
+          chmod +x bin/repair-bot
+          chmod +x tests/test.sh
+
+      - name: Python syntax
+        run: |
+          python -m py_compile \
+            nexus.py \
+            nexuslib/core.py
+
+      - name: Shell syntax
+        run: |
+          bash -n bin/nexus
+          bash -n bin/repair-bot
+          bash -n tests/test.sh
+
+      - name: Selftest
+        run: |
+          python nexus.py selftest
+
+      - name: Architect
+        run: |
+          python nexus.py create \
+            "AutoForge CI Project" |
+          jq -e \
+            '.name == "autoforge-ci-project"'
+
+      - name: Security
+        run: |
+          python nexus.py audit |
+          jq -e \
+            '.security == "PASS"'
+
+      - name: PASS
+        run: |
+          echo "✅ NEXUS AUTOFORGE CI PASS"

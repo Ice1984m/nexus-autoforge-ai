@@ -1,33 +1,44 @@
-# MIKIS13 NEXUS PRO
+# ⚡ Nexus AutoForge AI
 
-Termux development factory with:
+AI engineering and repair factory for Termux + GitHub.
 
-- architecture mode
-- debugging
-- repair bot
-- failure memory
-- anti-loop protection
-- security audit
-- performance checks
-- regression tests
+## Core workflow
+
+UNDERSTAND  
+→ INSPECT  
+→ ARCHITECT  
+→ BUILD  
+→ TEST  
+→ DEBUG  
+→ REPAIR  
+→ SECURITY  
+→ VERIFY  
+→ REVIEW  
+→ MERGE  
+→ LEARN
+
+## Features
+
+- Project Architect
+- Repair Bot
+- Failure Memory
+- Anti-loop debugging
+- Security audit
+- Performance checks
 - GitHub CI
-- safe evolve proposals
+- Review before merge
+- Safe evolution proposals
 
-Core workflow:
+## Commands
 
-UNDERSTAND → INSPECT → DEDUPLICATE → ARCHITECT → PLAN → BUILD → TEST → DEBUG → REPAIR → SECURITY → PERFORMANCE → REGRESSION → VERIFY → LEARN
-
-Commands:
-
-    nexus create "idee"
+    nexus create "maak een programma"
     nexus status
     nexus test
-    nexus repair
     nexus audit
+    nexus repair
     nexus debug "probleem"
     nexus learn "probleem" FAIL
     nexus learn "probleem" PASS
     nexus evolve
-    nexus-repair
 
-`nexus evolve` geeft alleen voorstellen en wijzigt `main` niet automatisch.
+A PASS must be verified.

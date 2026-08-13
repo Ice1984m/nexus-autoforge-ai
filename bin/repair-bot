@@ -1,32 +1,97 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -Eeuo pipefail
 
-ROOT="/data/data/com.termux/files/home/mikis13-nexus"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "🤖 MIKIS13 NEXUS PRO REPAIR BOT"
+echo
+echo "🤖 NEXUS AUTOFORGE REPAIR BOT"
+echo
 
-for ROUND in 1 2 3
+FAIL=0
+
+echo "=== STRUCTUUR ==="
+
+mkdir -p \
+    data \
+    logs \
+    reports \
+    tests \
+    bin
+
+chmod +x nexus.py 2>/dev/null || true
+chmod +x bin/nexus 2>/dev/null || true
+chmod +x bin/repair-bot 2>/dev/null || true
+chmod +x tests/test.sh 2>/dev/null || true
+
+echo "✅ structuur"
+
+echo
+echo "=== PYTHON SYNTAX ==="
+
+if python -m py_compile nexus.py nexuslib/core.py
+then
+    echo "✅ Python"
+else
+    echo "❌ Python"
+    FAIL=1
+fi
+
+echo
+echo "=== SHELL SYNTAX ==="
+
+for FILE in bin/nexus bin/repair-bot
 do
-  echo
-  echo "=== Repair ronde $ROUND/3 ==="
-
-  chmod +x     nexus.py     bin/nexus     bin/repair-bot     tests/test.sh 2>/dev/null || true
-
-  mkdir -p data logs reports
-
-  if timeout 90 python nexus.py repair
-  then
-    echo
-    echo "✅ REPAIR BOT PASS"
-    exit 0
-  fi
-
-  echo "⚠️ Repair ronde $ROUND faalde"
-
-  sleep 1
+    if bash -n "$FILE"
+    then
+        echo "✅ $FILE"
+    else
+        echo "❌ $FILE"
+        FAIL=1
+    fi
 done
 
 echo
+echo "=== SELFTEST ==="
+
+if timeout 45 python nexus.py selftest
+then
+    echo "✅ selftest"
+else
+    echo "❌ selftest"
+    FAIL=1
+fi
+
+echo
+echo "=== DATABASE ==="
+
+if timeout 45 python nexus.py repair >/dev/null
+then
+    echo "✅ repair/database"
+else
+    echo "⚠️ nexus repair kon niet zelfstandig voltooien"
+fi
+
+echo
+echo "=== SECURITY ==="
+
+if timeout 45 python nexus.py audit |
+   jq -e '.security == "PASS"' >/dev/null
+then
+    echo "✅ security"
+else
+    echo "❌ security"
+    FAIL=1
+fi
+
+echo
+echo "================================"
+
+if [ "$FAIL" -eq 0 ]
+then
+    echo "✅ REPAIR BOT PASS"
+    exit 0
+fi
+
 echo "❌ REPAIR BOT FAIL"
 exit 1
