@@ -1,4 +1,4 @@
-name: Nexus AutoForge CI
+name: Nexus AutoForge AI CI
 
 on:
   push:
@@ -16,15 +16,24 @@ permissions:
   contents: read
 
 jobs:
+
   verify:
+
+    name: AutoForge Verify
+
     runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    env:
+      PYTHONPATH: ${{ github.workspace }}
 
     steps:
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -40,12 +49,21 @@ jobs:
           chmod +x bin/nexus
           chmod +x bin/repair-bot
           chmod +x tests/test.sh
+          chmod +x tests/import-regression.py
+          chmod +x tests/security-regression.py
 
-      - name: Python syntax
+      - name: Python compile
         run: |
           python -m py_compile \
             nexus.py \
-            nexuslib/core.py
+            nexuslib/core.py \
+            tests/import-regression.py \
+            tests/security-regression.py
+
+      - name: Import regression
+        run: |
+          python tests/import-regression.py |
+          grep -q "IMPORT REGRESSION PASS"
 
       - name: Shell syntax
         run: |
@@ -64,12 +82,27 @@ jobs:
           jq -e \
             '.name == "autoforge-ci-project"'
 
-      - name: Security
+      - name: Security regression
+        run: |
+          python tests/security-regression.py |
+          jq -e \
+            '.status == "PASS"'
+
+      - name: Security audit
         run: |
           python nexus.py audit |
+          tee /tmp/audit.json
+
           jq -e \
-            '.security == "PASS"'
+            '.security == "PASS"' \
+            /tmp/audit.json
+
+      - name: Complete tests
+        run: |
+          ./tests/test.sh
 
       - name: PASS
         run: |
+          echo "================================"
           echo "✅ NEXUS AUTOFORGE CI PASS"
+          echo "================================"
