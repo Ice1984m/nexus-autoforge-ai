@@ -151,15 +151,32 @@ def run(cmd, timeout=45):
         }
 
 def security_scan():
-    patterns = (
-        "sk-proj-",
-        "github_pat_",
-        "ghp_",
-        "gho_",
-        "ghu_",
-        "ghs_",
-        "AKIA"
+    """
+    Detect probable credentials without flagging the scanner's own
+    documentation or token-prefix definitions.
+
+    The old implementation searched for bare values such as ``ghp_``
+    and ``AKIA``. Because those strings existed inside this source
+    file, the scanner could report itself as a secret leak.
+
+    These expressions require a realistic credential payload.
+    """
+
+    secret_patterns = (
+        re.compile(r"sk-proj-[A-Za-z0-9_-]{20,}"),
+        re.compile(r"github_pat_[A-Za-z0-9_]{20,}"),
+        re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}"),
+        re.compile(r"AKIA[0-9A-Z]{16}"),
     )
+
+    ignored_dirs = {
+        ".git",
+        "logs",
+        "data",
+        "__pycache__",
+        ".venv",
+        "venv",
+    }
 
     hits = []
 
@@ -167,18 +184,18 @@ def security_scan():
         if not p.is_file():
             continue
 
-        if ".git" in p.parts or "logs" in p.parts or "data" in p.parts:
+        if any(part in ignored_dirs for part in p.parts):
             continue
 
         try:
-            text = p.read_text(errors="ignore")
+            content = p.read_text(errors="ignore")
         except Exception:
             continue
 
-        if any(pattern in text for pattern in patterns):
+        if any(pattern.search(content) for pattern in secret_patterns):
             hits.append(str(p.relative_to(ROOT)))
 
-    return hits
+    return sorted(set(hits))
 
 def performance_check():
     return {
